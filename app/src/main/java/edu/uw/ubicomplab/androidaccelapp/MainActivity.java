@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     Double[] prevFeatures;
     Double[] features;
     private String countFilepath = "count.txt";
-    int prevAverage = 12;
+    int prevAverage = -1;
     // GLOBALS
     // Accelerometer
     private LineGraphSeries<DataPoint> timeAccelX = new LineGraphSeries<>();
@@ -78,11 +78,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private DescriptiveStatistics gyroTime, gyroX, gyroY, gyroZ;
     private DescriptiveStatistics orientTime, orientX, orientY, orientZ;
 
-    private static final int GESTURE_DURATION_SECS = 8;
+    private static final int GESTURE_DURATION_SECS = 4;
 
     boolean isAnyNewGestureRecorded = false;
-    int count = 0;
-    int numSamples = 0;
+//    int count = 0;
+//    int numSamples = -1;
+
+    int totalCount = 0;
+    int totalSamples = -1;
+    int currCount = 0;
+    int average = 0;
+    int lastEmpty = 0;
+    int sawEmpty = 0;
 
     SensorManager sensorManager;
     @Override
@@ -163,6 +170,102 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,
                         Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
     }
+
+    @Override
+    protected void onResume(){
+        super.onResume();
+        restoreData();
+        train();
+    }
+
+    @Override
+    protected void onStop(){
+        super.onStop();
+        saveData();
+    }
+
+    private void restoreData(){
+        Log.d("data", "in restore data");
+        File SDFile = android.os.Environment.getExternalStorageDirectory();
+        String fullFileName = SDFile.getAbsolutePath() + File.separator + countFilepath;
+        File countFile = new File(fullFileName);
+        if (countFile.exists()) {
+            BufferedReader dataReader;
+            try {
+                FileReader fileReader = new FileReader(fullFileName);
+                String text = null;
+                dataReader = new BufferedReader(fileReader);
+                try {
+                    totalCount = Integer.valueOf(dataReader.readLine());
+                    totalSamples = Integer.valueOf(dataReader.readLine());
+                    currCount = Integer.valueOf(dataReader.readLine());
+                    lastEmpty = Integer.valueOf(dataReader.readLine());
+                    if (totalSamples != 0) {
+                        average = totalCount / totalSamples;
+                    }
+                    Log.d("data reading totalCount", String.valueOf(totalCount));
+                    Log.d("data reading totalSamp", String.valueOf(totalSamples));
+                    Log.d("data reading currCount", String.valueOf(currCount));
+                    dataReader.close();
+                }
+                catch(Exception e){
+                    Log.e("Exception", "File read failed: " + e.toString());
+                }
+            }
+            catch(Exception e){
+                Log.e("Exception", "File read failed: " + e.toString());
+
+            }
+        }
+        else{
+            Log.e("Exception", "File does not exist ");
+        }
+    }
+
+    private void saveData(){
+        File SDFile = android.os.Environment.getExternalStorageDirectory();
+        String fullFileName = SDFile.getAbsolutePath() + File.separator + countFilepath;
+        File countFile = new File(fullFileName);
+        if (countFile.exists()) {
+            BufferedWriter writer;
+            try {
+                writer = new BufferedWriter(new FileWriter(fullFileName, false));
+                Log.d("data saving totalCount", String.valueOf(totalCount));
+                Log.d("data saving totalSamp", String.valueOf(totalSamples));
+                Log.d("data saving currCount", String.valueOf(currCount));
+
+                writer.write(Integer.toString(totalCount));
+                writer.newLine();
+                writer.write(Integer.toString(totalSamples));
+                writer.newLine();
+                writer.write(Integer.toString(currCount));
+                writer.newLine();
+                writer.write(Integer.toString(lastEmpty));
+                writer.close();
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+        }else{
+            try {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName));
+                writer.write(Integer.toString(totalCount));
+                writer.newLine();
+                writer.write(Integer.toString(totalSamples));
+                writer.newLine();
+                writer.write(Integer.toString(currCount));
+                writer.newLine();
+                writer.write(Integer.toString(lastEmpty));
+                writer.close();
+                Log.d("data saving totalCount", String.valueOf(totalCount));
+                Log.d("data saving totalSamp", String.valueOf(totalSamples));
+                Log.d("data saving currCount", String.valueOf(currCount));
+            }
+            catch (IOException e) {
+                Log.e("Exception", "File write failed: " + e.toString());
+            }
+        }
+    }
+
     float[] mGravity;
     float[] mGeomagnetic;
     @Override
@@ -282,6 +385,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             if (prevFeatures != null) {
                 model.addTrainingSample(prevFeatures, "EMP");
             }
+            train();
         }
         else
             model.assignTestSample(features);
@@ -309,29 +413,43 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 //                else{
 //                    result = "Unsure:" + result + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage);
 //                    resultText.setText("Result: " +result);
-//                }
-                if (result.compareTo("EMP") != 0){
-                    if((count < (0.125*prevAverage))){
-                        resultText.setText("Result: " + "100%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
+//
+                if (result.compareTo("EMP") != 0){ //NOT EMPTY
+                    lastEmpty = 0;
+                    if(sawEmpty == 1){
+                        updateCounts();
+                        //updateCountsFile(true);
+                        currCount = 0;
+                        sawEmpty = 0;
                     }
-                    else if((count < (0.375*prevAverage) && (count >= (0.125*prevAverage)))){
-                        resultText.setText("Result: " + "75%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
+                    if((currCount < (0.125*average))){
+                        resultText.setText("Result: " + "100%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
                     }
-                    else if(count < (0.625*prevAverage) && (count >= (0.375*prevAverage))){
-                        resultText.setText("Result: " + "50%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
+                    else if((currCount < (0.375*average) && (currCount >= (0.125*average)))){
+                        resultText.setText("Result: " + "75%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
                     }
-                    else if((count >= (0.635*prevAverage))&&(count < (0.875*prevAverage))){
-                        resultText.setText("Result: " + "25%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
+                    else if(currCount < (0.625*average) && (currCount >= (0.375*average))){
+                        resultText.setText("Result: " + "50%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
                     }
-//                    else if( (count >= (0.875*prevAverage)) ){
-//                        resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
-//                    }
+                    else if((currCount >= (0.635*average))&&(currCount < (0.875*average))){
+                        resultText.setText("Result: " + "25%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                    }
+                    else{
+                        resultText.setText("REALLY UNSURE: Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                    }
                 }
-                 else{
-                     if (count > (0.5*prevAverage)) {
-                         resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
+                 else{ //EMPTY
+                     if (lastEmpty == 1){
+                         resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                         lastEmpty = 0;
+                         sawEmpty = 1;
+                     }
+                     else if (currCount > (0.75*average)) {
+                         resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                         sawEmpty = 1;
                      } else{
                          resultText.setText("Unsure redo");
+                         lastEmpty = 1;
                      }
                 }
             }
@@ -341,6 +459,90 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         updateTrainDataCount();
         v2.setEnabled(true);
     }
+
+    public void updateCounts(){
+        totalSamples++;
+        totalCount = totalCount + currCount;
+        if(totalSamples > 0) {
+            average = totalCount / totalSamples;
+            Log.d("data", "upated average to" + average + "count: " + totalCount + "samples" + totalSamples);
+        }
+    }
+
+    /*
+    public void updateCountsFile(boolean modify){
+        File SDFile = android.os.Environment.getExternalStorageDirectory();
+        String fullFileName = SDFile.getAbsolutePath() + File.separator + countFilepath;
+        File countFile = new File(fullFileName);
+        if (countFile.exists()){
+            Log.d("writer", "exists");
+            BufferedReader dataReader;
+            try {
+                FileReader fileReader = new FileReader(fullFileName);
+                String text = null;
+                dataReader = new BufferedReader(fileReader);
+                try {
+                    int prevTotal = Integer.valueOf(dataReader.readLine());
+                    int prevNumSamples = Integer.valueOf(dataReader.readLine());
+                    count = Integer.valueOf(dataReader.readLine());
+                    Log.d("prev total", String.valueOf(prevTotal));
+                    Log.d("prev num samples", String.valueOf(prevNumSamples));
+                    dataReader.close();
+                    int newCount = prevTotal;
+                    int newNumSamples = prevNumSamples;
+                    if (modify) {
+                        newCount = (prevTotal + count);
+                        newNumSamples = prevNumSamples + 1;
+                        Log.d("prev newNumSamples", String.valueOf(newNumSamples));
+                        prevAverage = 0;
+                        if (newNumSamples != 0) {
+                            prevAverage = Math.round(newCount / newNumSamples);
+                        }
+                    } else{
+                        if (prevNumSamples == 0){
+                            prevAverage = 0;
+                        } else {
+                            prevAverage = Math.round(prevTotal / prevNumSamples);
+                        }
+                    }
+                    BufferedWriter writer;
+                    try {
+                        if (modify) {
+                            writer = new BufferedWriter(new FileWriter(fullFileName, false));
+                            Log.d("prev WRITING NEW COUNT", String.valueOf(newCount));
+                            Log.d("prev WRITING NEW COUNT", String.valueOf(newNumSamples));
+                            writer.write(Integer.toString(newCount));
+                            writer.newLine();
+                            writer.write(Integer.toString(newNumSamples));
+                            writer.newLine();
+                            writer.write(Integer.toString(count));
+                            writer.close();
+                        }
+                    } catch(FileNotFoundException e) {
+                        e.printStackTrace();
+                    }
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+        } else{ //FILE DOES NOT EXIST
+            try {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName));
+                writer.write(Integer.toString(count));
+                writer.newLine();
+                writer.write(Integer.toString(numSamples));
+                writer.newLine();
+                writer.write(Integer.toString(count));
+                writer.close();
+            }
+            catch (IOException e) {
+                Log.e("Exception", "File write failed: " + e.toString());
+            }
+        }
+    }
+    */
     /**
      * Records a gesture that is GESTURE_DURATION_SECS long
      */
@@ -354,62 +556,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             case R.id.gesture1Button: //FULL
                 label = model.outputClasses[0];
                 isTraining = true;
-                count = 0;
+                if (totalSamples <= 2) {
+                    updateCounts();
+                    //updateCountsFile(true);
+                    currCount = 0;
+                }
                 break;
             case R.id.gesture2Button: //EMPTY
-                numSamples++;
                 label = model.outputClasses[1];
                 isTraining = true;
                 //save count to file
-                File SDFile = android.os.Environment.getExternalStorageDirectory();
-                String fullFileName = SDFile.getAbsolutePath() + File.separator + countFilepath;
-                File countFile = new File(fullFileName);
-                if (countFile.exists()){
-                    Log.d("writer", "exists");
-                    BufferedReader dataReader;
-                    try {
-                        FileReader fileReader = new FileReader(fullFileName);
-                        String text = null;
-                        dataReader = new BufferedReader(fileReader);
-                        try {
-                            int prevTotal = Integer.valueOf(dataReader.readLine());
-                            int prevNumSamples = Integer.valueOf(dataReader.readLine());
-                            Log.d("prev total", String.valueOf(prevTotal));
-                            Log.d("prev num samples", String.valueOf(prevNumSamples));
-                            dataReader.close();
-                            int newCount = (prevTotal + count);
-                            int newNumSamples = prevNumSamples+1;
-                            Log.d("prev newNumSamples", String.valueOf(newNumSamples));
-                            prevAverage = Math.round(newCount/newNumSamples);
-                            BufferedWriter writer;
-                            try {
-                                writer = new BufferedWriter(new FileWriter(fullFileName, false));
-                                writer.write(Integer.toString(newCount));
-                                writer.newLine();
-                                writer.write(Integer.toString(newNumSamples));
-                                writer.close();
-                            } catch(FileNotFoundException e) {
-                                e.printStackTrace();
-                            }
-                        } catch (Exception e){
-                            e.printStackTrace();
-                        }
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    }
-
-                } else{
-                    try {
-                       BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName));
-                       writer.write(Integer.toString(count));
-                       writer.newLine();
-                       writer.write(Integer.toString(numSamples));
-                       writer.close();
-                    }
-                    catch (IOException e) {
-                        Log.e("Exception", "File write failed: " + e.toString());
-                    }
-                }
                 break;
             case R.id.gesture3Button:
                 label = model.outputClasses[2];
@@ -438,9 +594,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             default:
                 label = "?";
                 isTraining = false;
-                count++;
+                currCount++;
                 break;
         }
+
+
 
         //TODO: When you stop using Android sensors, you might want to remove the timers and directly add features from Particle to the set
         // Create the timer to start data collection from the Android sensors
@@ -478,6 +636,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         // Start the timers
         startTimer.schedule(startTask, 0);
         endTimer.schedule(endTask, GESTURE_DURATION_SECS*1000);
+    }
+
+    public void train() {
+        File SDFile = android.os.Environment.getExternalStorageDirectory();
+        String fullFileName = SDFile.getAbsolutePath() + File.separator + model.trainDataFilepath;
+        File trainingFile = new File(fullFileName);
+        if (trainingFile.exists() && !isAnyNewGestureRecorded)
+//        if (trainingFile.exists())
+        {
+            Log.d("TAG", "Training file exists: " + fullFileName);
+            model.train(false);
+
+        } else {
+            Log.d("TAG", "Need to create training file: " + fullFileName);
+            model.train(true);
+        }
     }
 
     /**
