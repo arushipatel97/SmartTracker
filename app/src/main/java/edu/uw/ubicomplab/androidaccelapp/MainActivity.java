@@ -35,13 +35,25 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.security.spec.ECField;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import static java.lang.Math.atan2;
+import static java.lang.Math.sqrt;
+import static java.util.Collections.sort;
+
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
+    int numDataCycles = 3;
+    int median = 0;
+    List<Integer> medianVal = new ArrayList<>();
+
     Double[] prevFeatures;
     Double[] features;
     private String countFilepath = "count.txt";
+    private String medianFilepath = "median.txt";
     int prevAverage = -1;
     // GLOBALS
     // Accelerometer
@@ -116,8 +128,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         gesture7Button = findViewById(R.id.gesture7Button);
         gesture8Button = findViewById(R.id.gesture8Button);
 
-        // Initialize the graphs
-        initializeFilteredGraph();
 
 
         // Initialize data structures for gesture recording
@@ -175,6 +185,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     protected void onResume(){
         super.onResume();
         restoreData();
+        updateMedianRestore();
         train();
     }
 
@@ -182,10 +193,83 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     protected void onStop(){
         super.onStop();
         saveData();
+        updateMedianSave();
+    }
+
+    private void updateMedianRestore(){
+        File SDFile = android.os.Environment.getExternalStorageDirectory();
+        String fullFileName = SDFile.getAbsolutePath() + File.separator + medianFilepath;
+        File medianFile = new File(fullFileName);
+        if (medianFile.exists()) {
+            BufferedReader dataReader;
+            try {
+                FileReader fileReader = new FileReader(fullFileName);
+                String text = null;
+                dataReader = new BufferedReader(fileReader);
+                try {
+                    String line = dataReader.readLine();
+                    while (line != null) {
+                        medianVal.add(Integer.valueOf(line));
+                        line = dataReader.readLine();
+                    }
+                    dataReader.close();
+                } catch (Exception e) {
+                    Log.e("Exception", "File read failed: " + e.toString());
+                }
+            }catch(Exception e){
+                Log.e("Exception", "File read failed: " + e.toString());
+            }
+        }
+    }
+
+    private int findMedian(){
+        List<Integer> lastVals = new ArrayList<Integer>();
+        int medianValSize = medianVal.size();
+        Log.d("ARRAY BEFORE", "OG MED VAL SIZE" + medianValSize);
+        if (medianValSize > numDataCycles) {
+            medianValSize = numDataCycles;
+        }
+        Log.d("ARRAY BEFORE", medianVal.toString() + "MED VAL SIZE" + medianValSize);
+        for (int i = medianValSize; i >0; i--) {
+            lastVals.add(medianVal.get(medianVal.size() - i));
+        }
+        sort(lastVals);
+        Log.d("ARRAY After", lastVals.toString() + "INDEX:" + lastVals.size()/2 + "MED: " + lastVals.get(((lastVals.size())/2)));
+        return lastVals.get(((lastVals.size())/2));
+    }
+
+    private void updateMedianSave(){
+        File SDFile = android.os.Environment.getExternalStorageDirectory();
+        String fullFileName = SDFile.getAbsolutePath() + File.separator + medianFilepath;
+        File countFile = new File(fullFileName);
+        if (countFile.exists()) {
+            BufferedWriter writer;
+            try {
+                writer = new BufferedWriter(new FileWriter(fullFileName, false));
+                int medianValSize = medianVal.size();
+                if (medianValSize > numDataCycles) {
+                    medianValSize = numDataCycles;
+                }
+                for (int i = medianValSize; i >0; i--) {
+                    writer.write(Integer.toString(medianVal.get(medianVal.size() - i)));
+                    writer.newLine();
+                }
+                writer.close();
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+        }else{
+            try {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName));
+            }
+            catch (IOException e) {
+                Log.e("Exception", "File write failed: " + e.toString());
+            }
+        }
     }
 
     private void restoreData(){
-        Log.d("data", "in restore data");
+//        Log.d("data", "in restore data");
         File SDFile = android.os.Environment.getExternalStorageDirectory();
         String fullFileName = SDFile.getAbsolutePath() + File.separator + countFilepath;
         File countFile = new File(fullFileName);
@@ -203,9 +287,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     if (totalSamples != 0) {
                         average = totalCount / totalSamples;
                     }
-                    Log.d("data reading totalCount", String.valueOf(totalCount));
-                    Log.d("data reading totalSamp", String.valueOf(totalSamples));
-                    Log.d("data reading currCount", String.valueOf(currCount));
+//                    Log.d("data reading totalCount", String.valueOf(totalCount));
+//                    Log.d("data reading totalSamp", String.valueOf(totalSamples));
+//                    Log.d("data reading currCount", String.valueOf(currCount));
                     dataReader.close();
                 }
                 catch(Exception e){
@@ -230,9 +314,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             BufferedWriter writer;
             try {
                 writer = new BufferedWriter(new FileWriter(fullFileName, false));
-                Log.d("data saving totalCount", String.valueOf(totalCount));
-                Log.d("data saving totalSamp", String.valueOf(totalSamples));
-                Log.d("data saving currCount", String.valueOf(currCount));
+//                Log.d("data saving totalCount", String.valueOf(totalCount));
+//                Log.d("data saving totalSamp", String.valueOf(totalSamples));
+//                Log.d("data saving currCount", String.valueOf(currCount));
 
                 writer.write(Integer.toString(totalCount));
                 writer.newLine();
@@ -256,9 +340,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 writer.newLine();
                 writer.write(Integer.toString(lastEmpty));
                 writer.close();
-                Log.d("data saving totalCount", String.valueOf(totalCount));
-                Log.d("data saving totalSamp", String.valueOf(totalSamples));
-                Log.d("data saving currCount", String.valueOf(currCount));
+//                Log.d("data saving totalCount", String.valueOf(totalCount));
+//                Log.d("data saving totalSamp", String.valueOf(totalSamples));
+//                Log.d("data saving currCount", String.valueOf(currCount));
             }
             catch (IOException e) {
                 Log.e("Exception", "File write failed: " + e.toString());
@@ -280,6 +364,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             float ax = event.values[0];
             float ay = event.values[1];
             float az = event.values[2];
+
+//            double Roll = atan2(ay, az) * 180/Math.PI;
+//            double Pitch = atan2(-ax, sqrt(ay*ay + az*az)) * 180/Math.PI;
+//            Log.d("ROLL PITCH", "ROLL: " + Roll + " Pitch: " + Pitch);
 
             // Add the original data to the graph
             DataPoint dataPointAccX = new DataPoint(accelGraphXTime, ax);
@@ -414,6 +502,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 //                    result = "Unsure:" + result + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage);
 //                    resultText.setText("Result: " +result);
 //
+//                Log.d("UGHH  Bef lastEmpty", String.valueOf(lastEmpty));
+                Log.d("ARRAY UGHH Bef sawEmpty", String.valueOf(sawEmpty));
                 if (result.compareTo("EMP") != 0){ //NOT EMPTY
                     lastEmpty = 0;
                     if(sawEmpty == 1){
@@ -422,36 +512,44 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                         currCount = 0;
                         sawEmpty = 0;
                     }
-                    if((currCount < (0.125*average))){
-                        resultText.setText("Result: " + "100%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                    if((currCount < (0.125*median))){
+                        resultText.setText("Result: " + "100%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
-                    else if((currCount < (0.375*average) && (currCount >= (0.125*average)))){
-                        resultText.setText("Result: " + "75%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                    else if((currCount < (0.375*median) && (currCount >= (0.125*median)))){
+                        resultText.setText("Result: " + "75%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
-                    else if(currCount < (0.625*average) && (currCount >= (0.375*average))){
-                        resultText.setText("Result: " + "50%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                    else if(currCount < (0.625*median) && (currCount >= (0.375*median))){
+                        resultText.setText("Result: " + "50%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
-                    else if((currCount >= (0.635*average))&&(currCount < (0.875*average))){
-                        resultText.setText("Result: " + "25%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                    else if((currCount >= (0.635*median))&&(currCount < (0.875*median))){
+                        resultText.setText("Result: " + "25%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
                     else{
-                        resultText.setText("REALLY UNSURE: Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
+                        resultText.setText("REALLY UNSURE: Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
                 }
                  else{ //EMPTY
                      if (lastEmpty == 1){
-                         resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
                          lastEmpty = 0;
                          sawEmpty = 1;
+                         resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(currCount) + "AVG:" + String.valueOf(average) + "MED:" + String.valueOf(median) + "SE" + sawEmpty);
                      }
                      else if (currCount > (0.75*average)) {
-                         resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average));
                          sawEmpty = 1;
+                         resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median)+ "SE" + sawEmpty);
                      } else{
                          resultText.setText("Unsure redo");
                          lastEmpty = 1;
                      }
-                }
+                 }
+
+                 if(totalSamples <= numDataCycles){
+                     Log.d("ARRAY morph", "ts " + totalSamples + "NDC " + numDataCycles);
+                     lastEmpty = 0;
+                     sawEmpty = 0;
+                 }
+//                Log.d("UGHH  Af lastEmpty", String.valueOf(lastEmpty));
+//                Log.d("UGHH  Af sawEmpty", String.valueOf(sawEmpty));
             }
         }
 
@@ -466,6 +564,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if(totalSamples > 0) {
             average = totalCount / totalSamples;
             Log.d("data", "upated average to" + average + "count: " + totalCount + "samples" + totalSamples);
+            medianVal.add(currCount);
+            median = findMedian();
         }
     }
 
@@ -556,7 +656,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             case R.id.gesture1Button: //FULL
                 label = model.outputClasses[0];
                 isTraining = true;
-                if (totalSamples <= 2) {
+                if (totalSamples <= numDataCycles) {
                     updateCounts();
                     //updateCountsFile(true);
                     currCount = 0;

@@ -104,12 +104,13 @@ public class Model {
 //        data[2] = ax.getMax(); // good milk
         data[0] = az.getMean();
         data[1] = az.getMax();
+        data[2] = az.getVariance();
         data[2] = ay.getMax(); // good
-        data[3] = ax.getMax();
-        data[4] = oy.getMean(); // good
-        data[5] = oy.getMin(); // good
-        data[6] = oy.getMax();
-        data[7] = oy.getVariance(); // good
+        data[3] = ay.getMean();
+        data[4] = ay.getVariance(); // good
+        data[5] = ax.getMin(); // good
+        data[6] = ax.getMax();
+        data[7] = ax.getVariance(); // good
         Log.d("Pitch", "mean Pitch is: " + oy.getMean());
         Log.d("Pitch", "max Pitch is: " + oy.getMax());
         Log.d("Pitch", "min Pitch is: " + oy.getMin());
