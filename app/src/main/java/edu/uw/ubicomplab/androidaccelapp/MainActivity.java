@@ -52,6 +52,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     Double[] prevFeatures;
     Double[] features;
+    List<Double[]> allFeatures = new ArrayList<Double[]>();
     private String countFilepath = "count.txt";
     private String medianFilepath = "median.txt";
     int prevAverage = -1;
@@ -467,42 +468,49 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         //TODO: Replace this function to receive features from Particle
         features = model.computeFeatures(accelTime, accelX, accelY, accelZ,
                 gyroTime, gyroX, gyroY, gyroZ, orientTime, orientX, orientY, orientZ);
-
         if ((isTraining) && (label.compareTo("FULL") == 0) ) {
             model.addTrainingSample(features, label);
             if (prevFeatures != null) {
                 model.addTrainingSample(prevFeatures, "EMP");
+                Log.d("INSIDE", String.valueOf(allFeatures.size()));
+                for (int i = 0; i < allFeatures.size(); i++){
+                    Double[] curFeature = allFeatures.get(i);
+                    double percent = (double)i/(double)allFeatures.size();
+                    Log.d("INSIDE", String.valueOf(percent));
+                    if (percent < 0.125){
+                        model.addTrainingSample(curFeature, "EMP");
+                        Log.d("INSIDE", "EMP");
+                    } else if (percent < 0.375){
+                        model.addTrainingSample(curFeature, "25");
+                        Log.d("INSIDE", "25");
+                    } else if (percent < 0.625){
+                        model.addTrainingSample(curFeature, "50");
+                        Log.d("INSIDE", "50");
+                    } else if (percent < 0.875){
+                        model.addTrainingSample(curFeature, "75");
+                        Log.d("INSIDE", "75");
+                    } else{
+                        model.addTrainingSample(curFeature, "FULL");
+                        Log.d("INSIDE", "FULL");
+                    }
+                }
+                allFeatures = new ArrayList<Double[]>();
             }
             train();
         }
         else
             model.assignTestSample(features);
 
+        if (totalSamples < numDataCycles) {
+            allFeatures.add(features);
+            Log.d("INSIDE", " added" + String.valueOf(allFeatures.size()));
+        }
+
         // Predict if the recent sample is for testing
         if (!isTraining) {
             String result = model.test();
 
             if (result != null) {
-//                if((result.compareTo("FULL") == 0) && (count < (0.125*prevAverage))){
-//                    resultText.setText("Result: " + "100%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
-//                }
-//                else if((result.compareTo("FULL") == 0) && (count < (0.375*prevAverage) && (count >= (0.125*prevAverage)))){
-//                    resultText.setText("Result: " + "75%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
-//                }
-//                else if(count < (0.625*prevAverage) && (count >= (0.375*prevAverage))){
-//                    resultText.setText("Result: " + "50%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
-//                }
-//                else if((result.compareTo("EMP") == 0) && (count >= (0.635*prevAverage))&&(count < (0.875*prevAverage))){
-//                    resultText.setText("Result: " + "25%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
-//                }
-//                else if((result.compareTo("EMP") == 0)&& (count >= (0.875*prevAverage)) ){
-//                    resultText.setText("Result: " + "0%" + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage));
-//                }
-//                else{
-//                    result = "Unsure:" + result + "Count:" + String.valueOf(count) + "Normal:" + String.valueOf(prevAverage);
-//                    resultText.setText("Result: " +result);
-//
-//                Log.d("UGHH  Bef lastEmpty", String.valueOf(lastEmpty));
                 Log.d("ARRAY UGHH Bef sawEmpty", String.valueOf(sawEmpty));
                 if (result.compareTo("EMP") != 0){ //NOT EMPTY
                     lastEmpty = 0;
@@ -513,19 +521,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                         sawEmpty = 0;
                     }
                     if((currCount < (0.125*median))){
-                        resultText.setText("Result: " + "100%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
+                        resultText.setText("RES: " + "100%" + "ML"  + result +"C:" + String.valueOf(currCount) + "Avg:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
                     else if((currCount < (0.375*median) && (currCount >= (0.125*median)))){
-                        resultText.setText("Result: " + "75%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
+                        resultText.setText("RES: " + "75%" + "ML" + result + "C:" + String.valueOf(currCount) + "Avg:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
                     else if(currCount < (0.625*median) && (currCount >= (0.375*median))){
-                        resultText.setText("Result: " + "50%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
+                        resultText.setText("RES: " + "50%" + "ML " + result + "C:" + String.valueOf(currCount) + "Avg:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
                     else if((currCount >= (0.635*median))&&(currCount < (0.875*median))){
-                        resultText.setText("Result: " + "25%" + "Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
+                        resultText.setText("RES: " + "25%" +  "ML " + result + "C:" + String.valueOf(currCount) + "Avg:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
                     else{
-                        resultText.setText("REALLY UNSURE: Count:" + String.valueOf(currCount) + "Normal:" + String.valueOf(average) + "MED:" + String.valueOf(median));
+                        resultText.setText("REALLY UNSURE:" + "ML " + result + "C:" + String.valueOf(currCount) + "Avg:" + String.valueOf(average) + "MED:" + String.valueOf(median));
                     }
                 }
                  else{ //EMPTY

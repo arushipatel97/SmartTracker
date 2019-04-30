@@ -40,7 +40,7 @@ public class Model {
     private Context context;
 
     // TODO optional: give your gestures more informative names
-    public String[] outputClasses = {"FULL", "EMP", "G3","G4", "G5","G6", "G7", "G8"};
+    public String[] outputClasses = {"FULL", "EMP", "25","50", "75","G6", "G7", "G8"};
 
     public Model(Context context) {
         this.context = context;
